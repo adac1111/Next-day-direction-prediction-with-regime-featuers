@@ -10,11 +10,12 @@ This project implements a structured pipeline for financial machine learning:
 
 ## Feature Engineering
 Beyod the naive price lags, the model constructs features by using statistical analysis.
-**Momentum and Volatility**: 10-day and 20-day momentum, momentum ratio, and rolling volatility to capture market states.
-**Market Regime**: collects data from the VIX index to evaluate the market regime.
 
-### Modeling Framework
-* **Classifier**: A random forest classifier was chosen because it is a relatively accessible and well-established model, and because it was presented in the book *Advances in Financial Machine Learning* by **Marcos Lopez de Prado** as one of the fundamental machine learning methods for financial applications.
+* **Momentum and Volatility**: 10-day and 20-day momentum, momentum ratio, and rolling volatility to capture market states.
+* **Market Regime**: collects data from the VIX index to evaluate the market regime.
+
+## Modeling Framework
+A Random Forest classifier was chosen because it is a relatively accessible and well-established model, and because it was presented in the book *Advances in Financial Machine Learning* by **Marcos Lopez de Prado** as one of the fundamental machine learning methods for financial applications.
 
 ## Metrics
 | Metric | Alternative Strategy (Model) | Baseline Strategy |
