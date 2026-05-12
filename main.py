@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score
 import yfinance as yf
 import matplotlib.pyplot as plt
 import math
@@ -115,6 +117,7 @@ def print_portfolio_evaluation(strategy_return, test, signal):
     print("2020 Sharpe: ", round(compute_yearly_sharpe (strategy_return, "2020-01-01", "2020-12-31"), 4))
     print("2021 Sharpe: ", round(compute_yearly_sharpe (strategy_return, "2021-01-01", "2021-12-31"), 4))
     print("2022 Sharpe: ", round(compute_yearly_sharpe (strategy_return, "2022-01-01", "2022-12-31"), 4))
+
     
     # Print CAGR
     print("CAGR: ", round(compute_CAGR(np.exp(strategy_return.cumsum())), 4))
@@ -144,7 +147,7 @@ print_portfolio_evaluation(baseline_strategy_return, data_test_1, baseline_signa
 # t = pd.date_range(start = '2020-01-01', end = '2022-12-31')
 # plt.figure(figsize = (16, 6))
 # plt.plot(baseline_strategy_cumsum, label = 'Basline Strategy')
-# plt.plot(np.exp(data_test['returns'].cumsum()), label = 'PnL')
+# plt.plot(np.exp(data_test_1['returns'].cumsum()), label = 'PnL')
 # plt.title("Baseline Strategy vs PnL returns curve")
 # plt.xlabel("Time")
 # plt.ylabel("Returns")
@@ -182,32 +185,32 @@ lag1_strategy_return.dropna(inplace = True)
 lag1_strategy_cumsum = np.exp(lag1_strategy_return.cumsum())
 
 
-# Train alternative strategy
+# Train optimized feature model
 rf = RandomForestClassifier(n_estimators = 500, max_depth = None, min_samples_leaf = 20, random_state = 42)
-alternative_strategy_train, cols = add_features(base_train, vix_close = yf.download("^VIX", start="2012-01-01", end="2019-12-31"), lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d', 'vix_z'])
-alternative_strategy_train['label'] = np.sign(alternative_strategy_train['returns']).shift(-1).replace(0, -1)
-alternative_strategy_train.dropna(inplace = True)
-rf.fit(alternative_strategy_train[cols], alternative_strategy_train['label'])
+optimized_strategy_train, cols = add_features(base_train, vix_close = yf.download("^VIX", start="2012-01-01", end="2019-12-31"), lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d', 'vix_z'])
+optimized_strategy_train['label'] = np.sign(optimized_strategy_train['returns']).shift(-1).replace(0, -1)
+optimized_strategy_train.dropna(inplace = True)
+rf.fit(optimized_strategy_train[cols], optimized_strategy_train['label'])
 
-# Test alternative strategy
-alternative_strategy_test, cols = add_features(base_test, vix_close = yf.download("^VIX", start="2020-01-01", end="2022-12-31"), lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d', 'vix_z'])
-alternative_strategy_test['label'] = np.sign(alternative_strategy_test['returns']).shift(-1).replace(0, -1)
-alternative_strategy_test.dropna(inplace = True)
-alternative_strategy_test_proba = rf.predict_proba(alternative_strategy_test[cols])
-alternative_strategy_test_signal = np.where(alternative_strategy_test_proba[:, 1] > 0.55, 1, np.where(alternative_strategy_test_proba[:, 1] < 0.45, -1, 0))
+# Test optimized feature model
+optimized_strategy_test, cols = add_features(base_test, vix_close = yf.download("^VIX", start="2020-01-01", end="2022-12-31"), lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d', 'vix_z'])
+optimized_strategy_test['label'] = np.sign(optimized_strategy_test['returns']).shift(-1).replace(0, -1)
+optimized_strategy_test.dropna(inplace = True)
+optimized_strategy_test_proba = rf.predict_proba(optimized_strategy_test[cols])
+optimized_strategy_test_signal = np.where(optimized_strategy_test_proba[:, 1] > 0.55, 1, np.where(optimized_strategy_test_proba[:, 1] < 0.45, -1, 0))
 
-# Plotting variables for the alternative Strategy
-alternative_strategy_return = (pd.Series(alternative_strategy_test_signal, index = alternative_strategy_test.index).shift(1) * alternative_strategy_test['returns'])
-alternative_strategy_return.dropna(inplace = True)
-alternative_strategy_cumsum = np.exp(alternative_strategy_return.cumsum())
+# Plotting variables for the optimized feature model
+optimized_strategy_return = (pd.Series(optimized_strategy_test_signal, index = optimized_strategy_test.index).shift(1) * optimized_strategy_test['returns'])
+optimized_strategy_return.dropna(inplace = True)
+optimized_strategy_cumsum = np.exp(optimized_strategy_return.cumsum())
 
 
-# Plot the curve comparing the baseline strategy, Lag_1 strategy, alternative strategy, and PnL
+# # Plot the curve comparing the baseline strategy, Lag_1 strategy, optimized feature model, and PnL
 # t = pd.date_range(start = '2020-01-01', end = '2022-12-31')
 # plt.figure(figsize = (16, 6))
 # plt.plot(baseline_strategy_cumsum, label = 'Basline Strategy', alpha = 0.7, lw = 2)
 # plt.plot(lag1_strategy_cumsum, label = 'Lag_1 Strategy', alpha = 0.7, lw = 2)
-# plt.plot(alternative_strategy_cumsum, label = 'Alternative Strategy', alpha = 0.7, lw = 2)
+# plt.plot(optimized_strategy_cumsum, label = 'optimized feature model', alpha = 0.7, lw = 2)
 # plt.plot(np.exp(data_test_1['returns'].cumsum()), label = 'PnL', alpha = 0.7, lw = 2)
 # plt.title("Baseline Strategy vs PnL returns curve")
 # plt.xlabel("Time")
@@ -218,5 +221,50 @@ alternative_strategy_cumsum = np.exp(alternative_strategy_return.cumsum())
 # Print portfolio evaluation for the lag_1 strategy
 # print_portfolio_evaluation(lag1_strategy_return, lag1_strategy_test, lag1_strategy_test_signal)
 
-# Print portfolio evaluation for the alternative strategy
-# print_portfolio_evaluation(alternative_strategy_return, alternative_strategy_test, alternative_strategy_test_signal)
+# Print portfolio evaluation for the optimized feature model
+# print_portfolio_evaluation(optimized_strategy_return, optimized_strategy_test, optimized_strategy_test_signal)
+
+
+# Walk-forward validation changes
+
+def walk_forward_validation (data, n = 3):
+    splits = TimeSeriesSplit(n_splits = n)
+
+    predictions, observations = [], []
+    for train_index, test_index in splits.split(df):
+        train = data.iloc[train_index]
+        test = data.iloc[test_index]
+
+        rf = RandomForestClassifier(n_estimators = 500, max_depth = None, min_samples_leaf = 20, random_state = 42)
+        strategy_train, cols = add_features(train, lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d'])
+        strategy_train['label'] = np.sign(strategy_train['returns']).shift(-1).replace(0, -1)
+        strategy_train.dropna(inplace = True)
+        rf.fit(strategy_train[cols], strategy_train['label'])
+
+        strategy_test, cols = add_features(test, lags = 5, extra_cols = ['vol_regime', 'vol_60d', 'MovingAverageRatio', 'Momentum_20d'])
+        strategy_test['label'] = np.sign(strategy_test['returns']).shift(-1).replace(0, -1)
+        strategy_test.dropna(inplace = True)
+        strategy_test= rf.predict(strategy_test[cols])
+
+        predictions.append(strategy_test)
+        observations.append(test)
+    return predictions, observations
+
+def walk_forward_evaluation(predictions, observations):
+    for i in range(len(predictions)):
+        index = observations[i].index[-len(predictions[i]):]
+
+        series_pred = pd.Series(predictions[i], index=index)
+        series_actual = pd.Series(np.where(observations[i]['Close'].diff() > 0, 1, -1), index=observations[i].index)
+        series = pd.concat([series_actual, series_pred], axis = 1).dropna()
+
+        accuracy = accuracy_score(series[0], series[1])
+        print(f"Fold {i+1} accuracy: {accuracy:.3%}")
+
+df = yf.download("^GSPC", start="2012-01-01", end="2022-12-31")
+df = pd.DataFrame(df['Close'])
+df.rename(columns = {'^GSPC' : 'Close'}, inplace = True)
+
+predictions, observations = walk_forward_validation(data = df, n = 5)
+walk_forward_evaluation(predictions, observations)
+
